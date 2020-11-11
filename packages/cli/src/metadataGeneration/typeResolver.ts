@@ -427,11 +427,30 @@ export class TypeResolver {
 
   private getEnumerateType(typeName: ts.EntityName): Tsoa.RefEnumType | undefined {
     const enumName = (typeName as ts.Identifier).text;
-    const enumNodes = this.current.nodes.filter(node => node.kind === ts.SyntaxKind.EnumDeclaration).filter(node => (node as any).name.text === enumName);
+    let enumNodes = this.current.nodes.filter(node => node.kind === ts.SyntaxKind.EnumDeclaration).filter(node => (node as any).name.text === enumName);
 
     if (!enumNodes.length) {
       return;
     }
+
+    if (enumNodes.length > 1) {
+      /**
+       * Model is marked with '@tsoaModel', indicating that it should be the 'canonical' model used
+       */
+      const designatedEnums = enumNodes.filter(enumNode => {
+        const isDesignatedModel = isExistJSDocTag(enumNode, tag => tag.tagName.text === 'tsoaModel');
+        return isDesignatedModel;
+      });
+
+      if (designatedEnums.length > 0) {
+        if (designatedEnums.length > 1) {
+          throw new GenerateMetadataError(`Multiple enums for ${typeName} marked with '@tsoaModel'; '@tsoaModel' should only be applied to one model.`);
+        }
+
+        enumNodes = designatedEnums;
+      }
+    }
+
     if (enumNodes.length > 1) {
       throw new GenerateMetadataError(`Multiple matching enum found for enum ${enumName}; please make enum names unique.`);
     }
